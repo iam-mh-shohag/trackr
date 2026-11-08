@@ -1,69 +1,110 @@
-import Image from "next/image";
+import Link from "next/link";
+import { getDB } from "@/lib/mongodb";
+import { COLLECTIONS } from "@/lib/types";
+import { ObjectId } from "mongodb";
+import { Lock, Unlock, Plus } from "lucide-react";
+import AddPersonModal from "@/components/AddPersonModal";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+async function getPeople() {
+  const db = await getDB();
+  const people = await db
+    .collection(COLLECTIONS.people)
+    .find({ isActive: true })
+    .sort({ createdAt: -1 })
+    .toArray();
+  const personIds = people.map((p) => p._id as ObjectId);
+
+  const balances = await db
+    .collection(COLLECTIONS.transactions)
+    .aggregate([
+      { $match: { personId: { $in: personIds }, settlementId: null } },
+      {
+        $group: {
+          _id: "$personId",
+          received: {
+            $sum: {
+              $cond: [{ $eq: ["$direction", "received"] }, "$amount", 0],
+            },
+          },
+          sent: {
+            $sum: { $cond: [{ $eq: ["$direction", "sent"] }, "$amount", 0] },
+          },
+        },
+      },
+    ])
+    .toArray();
+
+  const balanceMap = new Map(
+    balances.map((b) => [b._id.toString(), b.received - b.sent]),
+  );
+
+  return people.map((p) => ({
+    _id: p._id.toString(),
+    name: p.name,
+    note: p.note,
+    isLocked: p.isLocked,
+    netBalance: balanceMap.get((p._id as ObjectId).toString()) ?? 0,
+  }));
+}
+
+export default async function Home() {
+  const people = await getPeople();
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-slate-800">People</h2>
+        <AddPersonModal />
+      </div>
+
+      {people.length === 0 ? (
+        <div className="text-center py-12 bg-white rounded-xl border border-slate-200 border-dashed">
+          <p className="text-slate-500">No people added yet.</p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {people.map((person) => (
+            <div
+              key={person._id}
+              className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-800">
+                    {person.name}
+                  </h3>
+                  {person.note && (
+                    <p className="text-sm text-slate-500">{person.note}</p>
+                  )}
+                </div>
+                <button
+                  className={`p-2 rounded-full ${person.isLocked ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"}`}
+                >
+                  {person.isLocked ? <Lock size={16} /> : <Unlock size={16} />}
+                </button>
+              </div>
+
+              <div className="mb-5">
+                <p className="text-sm text-slate-500 mb-1">Net Balance</p>
+                <p
+                  className={`text-2xl font-bold ${person.netBalance < 0 ? "text-red-600" : "text-slate-800"}`}
+                >
+                  ৳ {person.netBalance.toLocaleString()}
+                </p>
+              </div>
+
+              <Link
+                href={`/people/${person._id}`}
+                className="block w-full text-center bg-slate-50 text-slate-700 py-2 rounded-lg text-sm font-medium hover:bg-slate-100 transition"
+              >
+                View Details
+              </Link>
+            </div>
+          ))}
         </div>
-      </main>
+      )}
     </div>
   );
 }
