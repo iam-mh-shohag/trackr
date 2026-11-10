@@ -3,10 +3,11 @@ import { notFound } from "next/navigation";
 import { getDB } from "@/lib/mongodb";
 import { COLLECTIONS } from "@/lib/types";
 import { ObjectId } from "mongodb";
-import { ArrowLeft, Image as ImageIcon } from "lucide-react";
 import LockButton from "@/components/LockButton";
 import AddTransactionModal from "@/components/AddTransactionModal";
 import AddChannelModal from "@/components/AddChannelModal";
+import TransactionList from "@/components/TransactionList";
+import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,8 @@ async function getPersonDetail(id: string) {
       transactionDate: t.transactionDate,
       screenshots: t.screenshots,
     })),
+    nextCursor:
+      transactions.length === 10 ? transactions[9]._id.toString() : null,
   };
 }
 
@@ -161,54 +164,14 @@ export default async function PersonDetail({
           <AddTransactionModal personId={data._id} channels={data.channels} />
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
-          {data.transactions.map((t) => (
-            <div
-              key={t._id}
-              className="p-4 flex items-center justify-between hover:bg-slate-50 transition"
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={`w-2 h-10 rounded-full ${t.direction === "received" ? "bg-green-500" : "bg-red-500"}`}
-                />
-                <div>
-                  <p className="font-medium text-slate-800">
-                    {t.direction === "received" ? "Received from" : "Sent to"}{" "}
-                    {t.counterpartyName || "Unknown"}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {new Date(t.transactionDate).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-
-              <div className="text-right flex items-center gap-4">
-                {t.screenshots && t.screenshots.length > 0 && (
-                  <a
-                    href={t.screenshots[0].url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-blue-500 hover:text-blue-700"
-                    title="View Receipt"
-                  >
-                    <ImageIcon size={18} />
-                  </a>
-                )}
-                <p
-                  className={`font-bold ${t.direction === "received" ? "text-green-600" : "text-red-600"}`}
-                >
-                  {t.direction === "received" ? "+" : "-"} ৳{" "}
-                  {t.amount.toLocaleString()}
-                </p>
-              </div>
-            </div>
-          ))}
-          {data.transactions.length === 0 && (
-            <div className="p-8 text-center text-slate-500 text-sm">
-              No transactions yet.
-            </div>
-          )}
-        </div>
+        {/* REPLACE THE OLD LIST WITH THIS */}
+        <TransactionList
+          key={data.transactions[0]?._id || "empty"}
+          initialTransactions={data.transactions}
+          initialCursor={data.nextCursor}
+          personId={data._id}
+          channels={data.channels}
+        />
       </div>
     </div>
   );
