@@ -40,20 +40,35 @@ async function getPeople() {
     balances.map((b) => [b._id.toString(), b.received - b.sent]),
   );
 
-  return people.map((p) => ({
-    _id: p._id.toString(),
-    name: p.name,
-    note: p.note,
-    isLocked: p.isLocked,
-    netBalance: balanceMap.get((p._id as ObjectId).toString()) ?? 0,
-  }));
+  // Calculate the grand total of all active people
+  let grandTotal = 0;
+  people.forEach((p) => {
+    const balance = balanceMap.get((p._id as ObjectId).toString()) ?? 0;
+    grandTotal += balance;
+  });
+
+  return {
+    people: people.map((p) => ({
+      _id: p._id.toString(),
+      name: p.name,
+      note: p.note,
+      isLocked: p.isLocked,
+      netBalance: balanceMap.get((p._id as ObjectId).toString()) ?? 0,
+    })),
+    grandTotal,
+  };
 }
 
 export default async function Home() {
-  const people = await getPeople();
+  const { people, grandTotal } = await getPeople();
 
   return (
     <div className="space-y-6">
+      <div className=" rounded-xl p-6 text-center text-white shadow-sm mb-8">
+        <p className="text-blue-100 font-medium mb-1">Total Money Held</p>
+        <p className="text-4xl font-bold">৳ {grandTotal.toLocaleString()}</p>
+      </div>
+
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-slate-800">People</h2>
         <AddPersonModal />

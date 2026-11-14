@@ -24,3 +24,14 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Force all inputs to have dark text for readability */
+input, select, textarea {
+  color: #0f172a !important; /* Tailwind slate-900 */
+  background-color: #ffffff !important; /* Pure white background */
+}
+
+/* Force modal headings to be dark */
+h1, h2, h3 {
+  color: #0f172a !important; /* Tailwind slate-900 */
+}

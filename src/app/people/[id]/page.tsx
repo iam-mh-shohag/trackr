@@ -8,6 +8,7 @@ import AddTransactionModal from "@/components/AddTransactionModal";
 import AddChannelModal from "@/components/AddChannelModal";
 import TransactionList from "@/components/TransactionList";
 import { ArrowLeft } from "lucide-react";
+import SettleModal from "@/components/SettleModal";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,20 @@ async function getPersonDetail(id: string) {
     .limit(10)
     .toArray();
 
+  // ADD THIS: Fetch past settlements
+  const settlements = await db
+    .collection(COLLECTIONS.settlements)
+    .find({ personId: new ObjectId(id) })
+    .sort({ settledAt: -1 })
+    .toArray();
+
+  const settlementList = settlements.map((s) => ({
+    _id: s._id.toString(),
+    settledAt: s.settledAt,
+    snapshotBalance: s.snapshotBalance,
+    note: s.note,
+  }));
+
   return {
     _id: person._id.toString(),
     name: person.name,
@@ -80,6 +95,7 @@ async function getPersonDetail(id: string) {
     })),
     nextCursor:
       transactions.length === 10 ? transactions[9]._id.toString() : null,
+    settlements: settlementList,
   };
 }
 
@@ -120,9 +136,7 @@ export default async function PersonDetail({
         >
           ৳ {netBalance.toLocaleString()}
         </p>
-        <button className="mt-4 px-6 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-200 transition">
-          Settle Account
-        </button>
+        <SettleModal personId={data._id} netBalance={netBalance} />
       </div>
 
       {/* Channels */}
@@ -164,7 +178,6 @@ export default async function PersonDetail({
           <AddTransactionModal personId={data._id} channels={data.channels} />
         </div>
 
-        {/* REPLACE THE OLD LIST WITH THIS */}
         <TransactionList
           key={data.transactions[0]?._id || "empty"}
           initialTransactions={data.transactions}
@@ -173,6 +186,40 @@ export default async function PersonDetail({
           channels={data.channels}
         />
       </div>
+
+      {/* Past Settlements */}
+      {data.settlements.length > 0 && (
+        <div className="pt-6 border-t border-slate-200">
+          <h3 className="text-lg font-semibold text-slate-800 mb-3">
+            Past Settlements
+          </h3>
+          <div className="space-y-3">
+            {data.settlements.map((s: any) => (
+              <div
+                key={s._id}
+                className="bg-slate-50 rounded-xl border border-slate-200 p-4 flex justify-between items-center"
+              >
+                <div>
+                  <p className="font-medium text-slate-800">
+                    Settled on {new Date(s.settledAt).toLocaleDateString()}
+                  </p>
+                  {s.note && <p className="text-sm text-slate-500">{s.note}</p>}
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-slate-500 mb-1">
+                    Archived Balance
+                  </p>
+                  <p
+                    className={`font-bold ${s.snapshotBalance < 0 ? "text-red-600" : "text-slate-800"}`}
+                  >
+                    ৳ {s.snapshotBalance.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
